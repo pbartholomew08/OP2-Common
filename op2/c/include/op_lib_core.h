@@ -367,6 +367,7 @@ void op_free(void *ptr);
 void *op_calloc(size_t num, size_t size);
 
 void deviceSync();
+void op_report();
 
 #ifdef __cplusplus
 }

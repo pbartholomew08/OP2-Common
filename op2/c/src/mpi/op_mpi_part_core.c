@@ -3504,15 +3504,18 @@ void op_partition_inertial(op_dat x_dat) {
 
   /*-STEP 2 - Partition all other sets,migrate data and renumber mapping
    * tables-*/
-
+  printf("inertial done: "); op_report();
   // partition all other sets
   partition_all(x_dat->set, my_rank, comm_size);
+  printf("partition_all done: "); op_report();
 
   // migrate data, sort elements
   migrate_all(my_rank, comm_size);
+  printf("migrate_all done: "); op_report();
 
   // renumber mapping tables
   renumber_maps(my_rank, comm_size);
+  printf("renumber_maps done: "); op_report();
 
   op_timers(&cpu_t2, &wall_t2); // timer stop for partitioning
   // printf time for partitioning
@@ -3724,9 +3727,78 @@ void partition(const char *lib_name, const char *lib_routine, op_set prime_set,
 #endif
 }
 
+#include "sys/types.h"
+#include "sys/sysinfo.h"
+#include "stdlib.h"
+#include "stdio.h"
+#include "string.h"
+
+int parseLine(char* line){
+    // This assumes that a digit will be found and the line ends in " Kb".
+    int i = strlen(line);
+    const char* p = line;
+    while (*p <'0' || *p > '9') p++;
+    line[i-3] = '\0';
+    i = atoi(p);
+    return i;
+}
+
+int getValue(){ //Note: this value is in KB!
+    FILE* file = fopen("/proc/self/status", "r");
+    int result = -1;
+    char line[128];
+
+    while (fgets(line, 128, file) != NULL){
+        if (strncmp(line, "VmSize:", 7) == 0){
+            result = parseLine(line);
+            break;
+        }
+    }
+    fclose(file);
+    return result;
+}
+
+
+int getValue2(){ //Note: this value is in KB!
+    FILE* file = fopen("/proc/self/status", "r");
+    int result = -1;
+    char line[128];
+
+    while (fgets(line, 128, file) != NULL){
+        //printf("%s\n",line);
+        if (strncmp(line, "VmRSS:", 6) == 0){
+            result = parseLine(line);
+            break;
+        }
+    }
+    fclose(file);
+    return result;
+}
+
+
+
 extern int **OP_map_ptr_list;
+
+void op_report() {
+struct sysinfo memInfo;
+
+sysinfo (&memInfo);
+long long totalVirtualMem = memInfo.totalram;
+//Add other values in next statement to avoid int overflow on right hand side...
+totalVirtualMem += memInfo.totalswap;
+totalVirtualMem *= memInfo.mem_unit;
+long long virtualMemUsed = memInfo.totalram - memInfo.freeram;
+//Add other values in next statement to avoid int overflow on right hand side...
+virtualMemUsed += memInfo.totalswap - memInfo.freeswap;
+virtualMemUsed *= memInfo.mem_unit;
+long long processused = getValue();
+long long processused2 = getValue2();
+printf("Used by process: %ld and %ld KB, total: %ld/%ld\n", processused, processused2, virtualMemUsed,totalVirtualMem);
+}
+
 void op_partition_ptr(const char *lib_name, const char *lib_routine,
                       op_set prime_set, int *prime_map, double *coords) {
+
   op_dat_entry *item;
   op_dat_entry *tmp_item;
   op_dat item_dat = NULL;
@@ -3759,4 +3831,5 @@ void op_partition_ptr(const char *lib_name, const char *lib_routine,
       printf("%s (%p) ", OP_map_list[i]->name, OP_map_ptr_list[i]);
   }
   op_partition(lib_name, lib_routine, prime_set, item_map, item_dat);
+  op_report();
 }

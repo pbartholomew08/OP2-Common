@@ -95,6 +95,7 @@ void op_init_soa(int argc, char **argv, int diags, int soa) {
 #endif
     cutilSafeCall(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte));
     printf("\n 16/48 L1/shared \n");
+    op_report();
   }
 }
 
@@ -141,10 +142,12 @@ void op_mpi_init_soa(int argc, char **argv, int diags, MPI_Fint global,
   //cutilSafeCall(cudaDeviceSetCacheConfig(cudaFuncCachePreferShared));
   cutilSafeCall(cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte));
   printf("\n 16/48 L1/shared \n");
+  op_report();
 }
 
 op_dat op_decl_dat_char(op_set set, int dim, char const *type, int size,
                         char *data, char const *name) {
+  op_report();
   if (set == NULL || data == NULL)
     return NULL;
   char *d = (char *)malloc((size_t)set->size * (size_t)dim * (size_t)size);
