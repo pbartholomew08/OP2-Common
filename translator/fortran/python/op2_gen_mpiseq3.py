@@ -83,6 +83,15 @@ def DO(i,start,finish):
     code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+'++ ){')
   depth += 2
 
+def DO_STEP(i,start,finish,step):
+  global file_text, FORTRAN, CPP, g_m
+  global depth
+  if FORTRAN:
+    code('DO '+i+' = '+start+', '+finish+' - 1, '+step)
+  elif CPP:
+    code('for ( int '+i+'='+start+'; '+i+'<'+finish+'; '+i+' = '+i+' + '+step+' ){')
+  depth += 2
+
 def FOR(i,start,finish):
   global file_text, FORTRAN, CPP, g_m
   global depth
@@ -150,6 +159,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
   OP_INC  = 4;  OP_MAX   = 5;  OP_MIN = 6;
 
   accsstring = ['OP_READ','OP_WRITE','OP_RW','OP_INC','OP_MAX','OP_MIN' ]
+
+  grouped = 0
 
   any_soa = 0
   for nk in range (0,len(kernels)):
@@ -455,7 +466,7 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
 
     code('')
-    code('INTEGER(kind=4) :: i1')
+    code('INTEGER(kind=4) :: i1, mpi_test_frequency')
     code('REAL(kind=4) :: dataTransfer')
 
     code('')
@@ -472,8 +483,10 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
     code('call op_timers_core(startTime)')
     code('')
     #mpi halo exchange call
-    #code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
-    code('n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,1)')
+    if grouped:
+      code('n_upper = op_mpi_halo_exchanges_grouped(set%setCPtr,numberOfOpDats,opArgArray,1)')
+    else:
+      code('n_upper = op_mpi_halo_exchanges(set%setCPtr,numberOfOpDats,opArgArray)')
 
     code('')
     code('opSetCore => set%setPtr')
@@ -497,6 +510,8 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
     code('')
     if 1:
+      code('mpi_test_frequency = op_get_mpi_test_frequency()')
+      DO_STEP('i1','0','opSetCore%core_size','mpi_test_frequency')
       code('CALL op_wrap_'+name+'( &')
       for g_m in range(0,ninds):
         if invinds[g_m] in needDimList:
@@ -515,9 +530,14 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
             k = k + [mapnames[g_m]]
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'Map, &')
             code('& opDat'+str(invinds[inds[g_m]-1]+1)+'MapDim, &')
-      code('& 0, opSetCore%core_size)')
-    #code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
-    code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
+      #code('& 0, opSetCore%core_size)')
+      code('& i1, min(i1+mpi_Test_frequency,opSetCore%core_size))')
+      code('CALL op_mpi_test_all(numberOfOpDats,opArgArray)')
+      ENDDO()
+    if grouped:
+      code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
+    else:
+      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     code('CALL op_wrap_'+name+'( &')
     for g_m in range(0,ninds):
       if invinds[g_m] in needDimList:
@@ -541,8 +561,10 @@ def op2_gen_mpiseq3(master, date, consts, kernels, hydra, bookleaf):
 
 
     IF('(n_upper .EQ. 0) .OR. (n_upper .EQ. opSetCore%core_size)')
-    #code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
-    code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
+    if grouped:
+      code('CALL op_mpi_wait_all_grouped(numberOfOpDats,opArgArray,1)')
+    else:
+      code('CALL op_mpi_wait_all(numberOfOpDats,opArgArray)')
     ENDIF()
     code('')
 
